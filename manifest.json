@@ -1,12 +1,12 @@
 {
-  "name": "DroneAstro Assistant",
-  "short_name": "DroneAstro",
-  "description": "Assistant de terrain pour sorties drone (DJI Neo 2) et astrophotographie",
+  "name": "Scrabble Arbitre IA - Reconnaissance & Anti-Triche",
+  "short_name": "ScrabbleArbitre",
+  "description": "Arbitre automatique, détecteur de triche et compteur de points 100% hors-ligne pour Scrabble francophone",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
   "icons": [
     {
       "src": "icons/icon-192.svg",
@@ -21,7 +21,7 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["utilities", "weather"],
+  "categories": ["games", "utilities"],
   "lang": "fr",
   "dir": "ltr"
 }

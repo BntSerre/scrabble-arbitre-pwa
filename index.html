@@ -1,465 +1,382 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0f172a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="DroneAstro">
-  <meta name="description" content="Assistant pour vol de drone DJI Neo 2 et astrophotographie — météo, éphémérides, carte des zones de vol.">
-  <meta name="mobile-web-app-capable" content="yes">
-
-  <title>DroneAstro Assistant</title>
-
-  <!-- Manifeste PWA -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Scrabble Arbitre IA - 100% Hors-Ligne</title>
+  
+  <!-- PWA Meta -->
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#090d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Scrabble Arbitre">
+  <link rel="icon" type="image/svg+xml" href="icons/icon-192.svg">
 
-  <!-- Icône Apple -->
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <!-- Local Offline Libraries -->
+  <script src="lib/tailwind.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="lib/chart.min.js"></script>
+  <script src="lib/opencv.js" async></script>
+  <script src="lib/tesseract.min.js"></script>
 
-  <!-- Feuilles de style -->
+  <!-- Custom Styles -->
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <div id="app">
+<body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col items-center justify-start overflow-x-hidden">
 
-    <!-- ============================================================
-         EN-TÊTE PRINCIPAL
-         ============================================================ -->
-    <header id="app-header">
-      <!-- Ligne supérieure : marque + horodatage -->
-      <div class="header-top">
-        <div class="header-brand">
-          <!-- Icône drone (4 hélices + corps) -->
-          <svg class="header-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="5" cy="5" r="3"/>
-            <circle cx="19" cy="5" r="3"/>
-            <circle cx="5" cy="19" r="3"/>
-            <circle cx="19" cy="19" r="3"/>
-            <line x1="7.5" y1="7.5" x2="10" y2="10"/>
-            <line x1="16.5" y1="7.5" x2="14" y2="10"/>
-            <line x1="7.5" y1="16.5" x2="10" y2="14"/>
-            <line x1="16.5" y1="16.5" x2="14" y2="14"/>
-            <rect x="10" y="10" width="4" height="4" rx="1"/>
-          </svg>
-          <h1>DroneAstro</h1>
+  <!-- App Wrapper (Samsung Galaxy S24 Ultra Aspect Ratio Optimized) -->
+  <div class="mobile-shell flex flex-col justify-between">
+
+    <!-- Top Header -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-950 font-black text-white text-base">
+          S
         </div>
-        <div class="header-meta">
-          <span id="last-update" class="text-muted text-xs">Chargement...</span>
+        <div>
+          <h1 class="text-sm font-black tracking-wide leading-tight text-white flex items-center gap-1.5">
+            SCRABBLE ARBITRE
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/50">IA LOCALE</span>
+          </h1>
+          <p class="text-[10px] text-slate-400 font-medium">Vision OpenCV • Anti-Triche • ODS</p>
         </div>
       </div>
 
-      <!-- Localisation courante -->
-      <div class="header-location">
-        <!-- Icône épingle de localisation -->
-        <svg class="icon-pin" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
-        </svg>
-        <span id="location-name">Localisation en cours...</span>
-        <span id="location-coords" class="text-muted text-xs"></span>
+      <!-- French 102-Tile Bag Remaining Badge -->
+      <div class="text-right">
+        <span class="text-[9px] uppercase tracking-wider text-slate-400 font-bold block">Pioche</span>
+        <span id="bag-remaining-count" class="text-xs font-black text-amber-400">102 / 102 jetons</span>
       </div>
-
-      <!-- Barre de recherche de lieu -->
-      <div id="search-container" class="search-bar">
-        <!-- Icône loupe -->
-        <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" id="location-search" placeholder="Rechercher un lieu..." autocomplete="off" aria-label="Rechercher un lieu">
-        <button id="btn-search" class="btn-icon" aria-label="Rechercher">
-          <!-- Icône flèche de recherche -->
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="5" y1="12" x2="19" y2="12"/>
-            <polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </button>
-      </div>
-      <div id="search-results" class="search-results" hidden></div>
     </header>
 
-    <!-- ============================================================
-         BADGES DE STATUT (Vol drone / Photo astro)
-         ============================================================ -->
-    <section id="status-badges" class="status-section" aria-label="Statuts principaux">
+    <!-- Main Content Area -->
+    <main class="flex-1 p-3 pb-24 overflow-y-auto">
 
-      <!-- Badge Vol Drone -->
-      <div id="drone-badge" class="badge badge-drone">
-        <div class="badge-header">
-          <div class="badge-icon">
-            <!-- Icône drone compacte -->
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="5" cy="5" r="2.5"/>
-              <circle cx="19" cy="5" r="2.5"/>
-              <circle cx="5" cy="19" r="2.5"/>
-              <circle cx="19" cy="19" r="2.5"/>
-              <line x1="7" y1="7" x2="10" y2="10"/>
-              <line x1="17" y1="7" x2="14" y2="10"/>
-              <line x1="7" y1="17" x2="10" y2="14"/>
-              <line x1="17" y1="17" x2="14" y2="14"/>
-              <rect x="10" y="10" width="4" height="4" rx="1"/>
-            </svg>
+      <!-- ============================================== -->
+      <!-- TAB 1: SCANNER & CALIBRATION                   -->
+      <!-- ============================================== -->
+      <section id="tab-scan" class="tab-panel space-y-3">
+        <!-- Live Calibration Viewfinder Container -->
+        <div class="calibration-container relative border border-slate-700/60 shadow-2xl">
+          <canvas id="camera-canvas"></canvas>
+          <canvas id="camera-overlay"></canvas>
+          
+          <div class="absolute top-2 left-2 right-2 flex justify-between items-center pointer-events-none">
+            <span class="bg-black/75 backdrop-blur-sm text-[10px] font-bold text-emerald-400 px-2 py-1 rounded-full border border-emerald-500/40">
+              Mire 4 Coins (Glisser au doigt)
+            </span>
+            <span class="bg-black/75 backdrop-blur-sm text-[10px] font-bold text-slate-300 px-2 py-1 rounded-full border border-slate-700">
+              15x15
+            </span>
           </div>
-          <div class="badge-title">Vol Drone</div>
         </div>
-        <div class="badge-status">
-          <span class="status-dot"></span>
-          <span class="status-text">--</span>
-        </div>
-        <div class="badge-reason text-xs text-muted">Analyse en cours...</div>
-      </div>
 
-      <!-- Badge Photo Astro -->
-      <div id="astro-badge" class="badge badge-astro">
-        <div class="badge-header">
-          <div class="badge-icon">
-            <!-- Icône étoile / télescope -->
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-              <path d="M12 2l2.09 6.26L20.18 9l-5 4.27L16.82 20 12 16.77 7.18 20l1.64-6.73L3.82 9l6.09-.74L12 2z"/>
-            </svg>
-          </div>
-          <div class="badge-title">Photo Astro</div>
-        </div>
-        <div class="badge-status">
-          <span class="status-dot"></span>
-          <span class="status-text">--</span>
-        </div>
-        <div class="badge-reason text-xs text-muted">Analyse en cours...</div>
-      </div>
-    </section>
+        <!-- Camera & Calibration Action Controls -->
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btn-start-cam" class="flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-xs font-bold rounded-xl border border-slate-700 text-slate-200 shadow transition-all">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+            <span>Activer Caméra</span>
+          </button>
 
-    <!-- ============================================================
-         CARTE VENT
-         ============================================================ -->
-    <section class="card" id="wind-card">
-      <div class="card-header">
-        <!-- Icône vent (lignes ondulées) -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M9.59 4.59A2 2 0 1 1 11 8H2"/>
-          <path d="M12.59 19.41A2 2 0 1 0 14 16H2"/>
-          <path d="M17.73 7.73A2.5 2.5 0 1 1 19.5 12H2"/>
-        </svg>
-        <h2>Vent</h2>
-      </div>
-      <div class="card-body">
-        <!-- Jauges de vent sol & altitude (10m, 80m, 150m) -->
-        <div class="gauges-row">
-          <div class="gauge-container" id="gauge-wind-10m">
-            <!-- Jauge SVG Sol (10m) -->
-            <div class="gauge-label">Sol (10m)</div>
-          </div>
-          <div class="gauge-container" id="gauge-wind-80m">
-            <!-- Jauge SVG Altitude (80m) -->
-            <div class="gauge-label">Alt. (80m)</div>
-          </div>
-          <div class="gauge-container" id="gauge-wind-150m">
-            <!-- Jauge SVG Altitude (150m) -->
-            <div class="gauge-label">Alt. (150m)</div>
-          </div>
-        </div>
-        <!-- Rafales -->
-        <div class="gusts-row">
-          <div class="gust-info">
-            <span class="gust-icon">💨</span>
-            <span class="gust-label">Rafales</span>
-            <span id="gust-value" class="gust-value font-mono">-- km/h</span>
-          </div>
-          <div class="gust-bar-container">
-            <div id="gust-bar" class="gust-bar"></div>
-            <div class="gust-threshold" style="left: 50%;" title="Limite 25 km/h"></div>
-            <div class="gust-threshold gust-threshold-danger" style="left: 64%;" title="Limite 32 km/h"></div>
-          </div>
-        </div>
-      </div>
-    </section>
+          <button id="btn-stop-cam" class="hidden flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-rose-950/80 hover:bg-rose-900 active:scale-98 text-xs font-bold rounded-xl border border-rose-700 text-rose-200 shadow transition-all">
+            <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path></svg>
+            <span>Arrêter Caméra</span>
+          </button>
 
-    <!-- ============================================================
-         CARTE CONDITIONS MÉTÉO
-         ============================================================ -->
-    <section class="card" id="conditions-card">
-      <div class="card-header">
-        <!-- Icône thermomètre -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-        </svg>
-        <h2>Conditions</h2>
-      </div>
-      <div class="card-body">
-        <div class="conditions-grid">
-          <div class="condition-item">
-            <span class="condition-icon">🌡️</span>
-            <span id="temp-value" class="condition-value font-mono">--°C</span>
-            <span class="condition-label">Température</span>
-          </div>
-          <div class="condition-item">
-            <span class="condition-icon">🌧️</span>
-            <span id="rain-value" class="condition-value font-mono">--%</span>
-            <span class="condition-label">Prob. Pluie</span>
-          </div>
-          <div class="condition-item">
-            <span class="condition-icon">👁️</span>
-            <span id="visibility-value" class="condition-value font-mono">-- km</span>
-            <span class="condition-label">Visibilité</span>
-          </div>
-          <div class="condition-item">
-            <span class="condition-icon">💧</span>
-            <span id="humidity-value" class="condition-value font-mono">--%</span>
-            <span class="condition-label">Humidité</span>
-          </div>
-        </div>
-      </div>
-    </section>
+          <button id="btn-upload-photo" class="flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-xs font-bold rounded-xl border border-slate-700 text-slate-200 shadow transition-all">
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span>Importer Photo</span>
+          </button>
+          <input type="file" id="file-input-photo" accept="image/*" class="hidden">
 
-    <!-- ============================================================
-         CARTE INDICE KP — ACTIVITÉ GÉOMAGNÉTIQUE
-         ============================================================ -->
-    <section class="card" id="kp-card">
-      <div class="card-header">
-        <!-- Icône soleil / activité géomagnétique -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <h2>Indice Kp — Activité Géomagnétique</h2>
-      </div>
-      <div class="card-body">
-        <div class="kp-display">
-          <span id="kp-value" class="kp-value font-mono">--</span>
-          <span id="kp-description" class="kp-description text-muted">Chargement...</span>
+          <button id="btn-load-sample" class="col-span-2 flex items-center justify-center space-x-1.5 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-xs font-bold rounded-xl border border-slate-700 text-slate-200 shadow transition-all">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            <span>Générer Plateau Test Synthétique</span>
+          </button>
         </div>
-        <div class="kp-bar" id="kp-bar" role="img" aria-label="Échelle Kp de 0 à 9">
-          <div class="kp-segment" data-value="0">0</div>
-          <div class="kp-segment" data-value="1">1</div>
-          <div class="kp-segment" data-value="2">2</div>
-          <div class="kp-segment" data-value="3">3</div>
-          <div class="kp-segment" data-value="4">4</div>
-          <div class="kp-segment" data-value="5">5</div>
-          <div class="kp-segment" data-value="6">6</div>
-          <div class="kp-segment" data-value="7">7</div>
-          <div class="kp-segment" data-value="8">8</div>
-          <div class="kp-segment" data-value="9">9</div>
-        </div>
-      </div>
-    </section>
 
-    <!-- ============================================================
-         CARTE COUVERTURE NUAGEUSE
-         ============================================================ -->
-    <section class="card" id="clouds-card">
-      <div class="card-header">
-        <!-- Icône nuage -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-        </svg>
-        <h2>Couverture Nuageuse</h2>
-      </div>
-      <div class="card-body">
-        <div class="cloud-item">
-          <div class="cloud-label-row">
-            <span>Total</span>
-            <span id="cloud-total" class="font-mono">--%</span>
-          </div>
-          <div class="cloud-bar-track"><div id="cloud-total-bar" class="cloud-fill"></div></div>
-        </div>
-        <div class="cloud-item">
-          <div class="cloud-label-row">
-            <span>Basse altitude</span>
-            <span id="cloud-low" class="font-mono">--%</span>
-          </div>
-          <div class="cloud-bar-track"><div id="cloud-low-bar" class="cloud-fill"></div></div>
-        </div>
-        <div class="cloud-item">
-          <div class="cloud-label-row">
-            <span>Moyenne altitude</span>
-            <span id="cloud-mid" class="font-mono">--%</span>
-          </div>
-          <div class="cloud-bar-track"><div id="cloud-mid-bar" class="cloud-fill"></div></div>
-        </div>
-        <div class="cloud-item">
-          <div class="cloud-label-row">
-            <span>Haute altitude</span>
-            <span id="cloud-high" class="font-mono">--%</span>
-          </div>
-          <div class="cloud-bar-track"><div id="cloud-high-bar" class="cloud-fill"></div></div>
-        </div>
-      </div>
-    </section>
+        <!-- Primary Recognition Trigger -->
+        <button id="btn-snap-scan" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center space-x-2 border border-emerald-400/40 transition-all">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          <span>REDRESSER OPENCV & DÉTECTER TUILES</span>
+        </button>
 
-    <!-- ============================================================
-         CARTE ÉPHÉMÉRIDES SOLAIRES
-         ============================================================ -->
-    <section class="card" id="sun-card">
-      <div class="card-header">
-        <!-- Icône soleil -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"/>
-          <path d="M12 2v2"/>
-          <path d="M12 20v2"/>
-          <path d="m4.93 4.93 1.41 1.41"/>
-          <path d="m17.66 17.66 1.41 1.41"/>
-          <path d="M2 12h2"/>
-          <path d="M20 12h2"/>
-          <path d="m6.34 17.66-1.41 1.41"/>
-          <path d="m19.07 4.93-1.41 1.41"/>
-        </svg>
-        <h2>Éphémérides Solaires</h2>
-      </div>
-      <div class="card-body">
-        <div class="ephemeris-grid">
-          <div class="ephem-item">
-            <span class="ephem-icon">🌅</span>
-            <span class="ephem-label">Lever</span>
-            <span id="sunrise" class="ephem-value font-mono">--:--</span>
-          </div>
-          <div class="ephem-item">
-            <span class="ephem-icon">🌇</span>
-            <span class="ephem-label">Coucher</span>
-            <span id="sunset" class="ephem-value font-mono">--:--</span>
-          </div>
-          <div class="ephem-item ephem-golden">
-            <span class="ephem-icon">✨</span>
-            <span class="ephem-label">Golden Hour (soir)</span>
-            <span id="golden-hour" class="ephem-value font-mono">--:-- → --:--</span>
-          </div>
-          <div class="ephem-item ephem-blue">
-            <span class="ephem-icon">🔵</span>
-            <span class="ephem-label">Heure Bleue (soir)</span>
-            <span id="blue-hour" class="ephem-value font-mono">--:-- → --:--</span>
-          </div>
-          <div class="ephem-item ephem-night">
-            <span class="ephem-icon">🌌</span>
-            <span class="ephem-label">Nuit Astronomique</span>
-            <span id="astro-night" class="ephem-value font-mono">--:-- → --:--</span>
-          </div>
+        <!-- Interactive 3-Turn Demo Scenario (Autonomous Verification) -->
+        <div class="pt-2 border-t border-slate-800">
+          <button id="btn-demo-3turns" class="w-full py-3 px-4 bg-gradient-to-r from-amber-600 via-emerald-600 to-indigo-600 hover:opacity-95 active:scale-98 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center space-x-2 transition-all">
+            <svg class="w-4 h-4 animate-spin text-amber-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>SIMULER LA SÉQUENCE DE 3 TOURS (DÉMO)</span>
+          </button>
+          <p class="text-[10px] text-slate-400 text-center mt-1">
+            Démontre : 1. Mot centre H8 • 2. Triche diagonale bloquée • 3. Scrabble 7 lettres sur Mot Compte Triple.
+          </p>
         </div>
-        <!-- Barre chronologique solaire -->
-        <div class="timeline-container">
-          <div id="sun-timeline" class="timeline-bar">
-            <!-- Segments rendus par le JS -->
-          </div>
-          <div id="timeline-now" class="timeline-now-marker"></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ============================================================
-         CARTE LUNE
-         ============================================================ -->
-    <section class="card" id="moon-card">
-      <div class="card-header">
-        <!-- Icône croissant de lune -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-        <h2>Lune</h2>
-      </div>
-      <div class="card-body">
-        <div class="moon-display">
-          <div class="moon-visual" id="moon-visual">
-            <!-- Cercle de phase lunaire (CSS) -->
-            <div class="moon-sphere">
-              <div class="moon-shadow" id="moon-shadow"></div>
+      <!-- ============================================== -->
+      <!-- TAB 2: GRILLE 15X15 & ARBITRE                  -->
+      <!-- ============================================== -->
+      <section id="tab-board" class="tab-panel hidden space-y-3">
+        <!-- Player Score Summary Cards -->
+        <div class="grid grid-cols-2 gap-2">
+          <div id="card-player-1" class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 transition-all">
+            <div class="flex items-center justify-between text-[11px] text-slate-400 font-bold mb-1">
+              <span>Joueur 1</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div id="player-1-score" class="text-xl font-black text-emerald-400">0 pts</div>
+          </div>
+
+          <div id="card-player-2" class="bg-slate-900 border border-slate-800 rounded-xl p-2.5 transition-all">
+            <div class="flex items-center justify-between text-[11px] text-slate-400 font-bold mb-1">
+              <span>Joueur 2</span>
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            </div>
+            <div id="player-2-score" class="text-xl font-black text-amber-400">0 pts</div>
+          </div>
+        </div>
+
+        <!-- Current Turn & Live Score Preview -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span id="current-turn-indicator" class="text-xs font-black text-slate-200">Tour 1 • Joueur 1</span>
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[10px] font-bold text-slate-400 uppercase">Gain Tour :</span>
+              <span id="preview-turn-score" class="text-2xl font-black text-emerald-400">0 pt</span>
             </div>
           </div>
-          <div class="moon-info">
-            <div class="moon-phase-name" id="moon-phase-name">--</div>
-            <div class="moon-illumination">
-              Illumination : <span id="moon-illumination" class="font-mono">--%</span>
-            </div>
-            <div class="moon-times">
-              <span>🌙 Lever : <span id="moonrise" class="font-mono">--:--</span></span>
-              <span>🌙 Coucher : <span id="moonset" class="font-mono">--:--</span></span>
-            </div>
+
+          <!-- Status / Rule Check Banner -->
+          <div id="status-preview-banner" class="p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 text-xs">
+            Touchez les cases de la grille pour modifier ou corriger des lettres.
+          </div>
+
+          <!-- Words Formed Pills -->
+          <div id="preview-words-list" class="flex flex-wrap gap-1.5 pt-1">
+            <!-- Dynamic word chips injected here -->
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- ============================================================
-         CARTE PRÉVISIONS HORAIRES (GRAPHIQUE)
-         ============================================================ -->
-    <section class="card" id="chart-card">
-      <div class="card-header">
-        <!-- Icône graphique en ligne -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-        </svg>
-        <h2>Prévisions 6h</h2>
-      </div>
-      <div class="card-body">
-        <div class="chart-container">
-          <canvas id="forecast-chart" aria-label="Graphique des prévisions sur 6 heures" role="img"></canvas>
+        <!-- 15x15 Official Scrabble Grid -->
+        <div id="scrabble-board-grid">
+          <!-- 225 cells generated by JS -->
         </div>
-      </div>
-    </section>
 
-    <!-- ============================================================
-         ZONES DE RESTRICTIONS UAS (GÉOPORTAIL)
-         ============================================================ -->
-    <section class="card" id="uas-card">
-      <div class="card-header">
-        <!-- Icône carte avec couches -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-          <line x1="8" y1="2" x2="8" y2="18"/>
-          <line x1="16" y1="6" x2="16" y2="22"/>
-        </svg>
-        <h2>Zones de Restrictions Drones (UAS)</h2>
-      </div>
-      <div class="card-body">
-        <p class="text-xs text-muted" style="margin-bottom: 12px; line-height: 1.45;">
-          Accédez directement à la carte officielle DGAC / Géoportail des restrictions de vol pour drones (hauteurs autorisées 30m, 50m, 100m, 120m, 150m, zones interdites et aérodromes) centrée sur vos coordonnées GPS.
-        </p>
-        <button id="btn-geoportail" class="btn-geoportail-full" aria-label="Ouvrir les zones UAS sur Géoportail">
-          <!-- Icône lien externe -->
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-            <polyline points="15 3 21 3 21 9"/>
-            <line x1="10" y1="14" x2="21" y2="3"/>
-          </svg>
-          Ouvrir la Carte Géoportail UAS France
+        <!-- Board Grid Action Buttons -->
+        <div class="space-y-2 pt-1">
+          <button id="btn-validate-move" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center space-x-2 border border-emerald-400/40 transition-all">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <span>VALIDER LE COUP (ARBITRE)</span>
+          </button>
+
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <button id="btn-clear-turn" class="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700 text-center">
+              Annuler tour
+            </button>
+            <button id="btn-pass-turn" class="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700 text-center">
+              Passer (0 pt)
+            </button>
+            <button id="btn-new-game" class="py-2 px-2 bg-rose-950/60 hover:bg-rose-900 text-rose-200 font-bold rounded-lg border border-rose-800/60 text-center">
+              Nouveau match
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 3: DICTIONNAIRE OFFICIEL ODS               -->
+      <!-- ============================================== -->
+      <section id="tab-dict" class="tab-panel hidden space-y-3">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-3 shadow-lg">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-black text-slate-100 flex items-center gap-1.5">
+              <span>DICTIONNAIRE FRANCOPHONE</span>
+              <span class="text-[9px] bg-slate-800 text-slate-300 font-bold px-1.5 py-0.5 rounded border border-slate-700">ODS</span>
+            </h3>
+            <span id="dict-total-count" class="text-[10px] text-emerald-400 font-bold">Chargement...</span>
+          </div>
+
+          <div class="relative">
+            <input type="text" id="dict-search-input" placeholder="Ex: JOUEUR ou J?UEUR (Joker)" class="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-3 pr-24 text-sm font-bold text-slate-100 uppercase focus:outline-none focus:border-emerald-500">
+            <button id="dict-btn-search" class="absolute right-1 top-1 bottom-1 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all">
+              Vérifier
+            </button>
+          </div>
+
+          <p class="text-[10px] text-slate-400">
+            Astuce : Utilisez le point d'interrogation <code class="text-amber-400">?</code> pour trouver toutes les lettres possibles d'un Joker.
+          </p>
+
+          <div id="dict-search-result" class="min-h-[80px]">
+            <!-- Result box -->
+          </div>
+
+          <div class="pt-2 border-t border-slate-800 flex justify-between items-center">
+            <span class="text-xs text-slate-400">Mot contesté ?</span>
+            <button id="dict-btn-add-custom" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 font-bold">
+              + Ajouter une tolérance
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 4: STATISTIQUES & HISTORIQUE               -->
+      <!-- ============================================== -->
+      <section id="tab-stats" class="tab-panel hidden space-y-3">
+        <!-- Export / Import bar -->
+        <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+          <span class="text-xs font-bold text-slate-300">Données locales :</span>
+          <div class="flex space-x-2">
+            <button id="btn-export-stats" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 rounded-lg border border-slate-700">
+              Exporter JSON
+            </button>
+            <button id="btn-import-stats" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 rounded-lg border border-slate-700">
+              Importer JSON
+            </button>
+            <input type="file" id="file-input-stats" accept=".json" class="hidden">
+          </div>
+        </div>
+
+        <!-- Player Cards List -->
+        <div id="stats-players-cards" class="space-y-3">
+          <!-- Dynamic cards injected by JS -->
+        </div>
+
+        <!-- Chart.js Graph 1: Progression par tour -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-lg space-y-2">
+          <h4 class="text-xs font-black text-slate-200 tracking-wide uppercase">Progression des Scores</h4>
+          <div class="h-44 w-full">
+            <canvas id="chart-progression"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart.js Graph 2: Comparatif & Indice Triche -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-lg space-y-2">
+          <h4 class="text-xs font-black text-slate-200 tracking-wide uppercase">Victoires & Indice Triche</h4>
+          <div class="h-44 w-full">
+            <canvas id="chart-comparison"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 px-2 py-2">
+      <div class="max-w-[440px] mx-auto grid grid-cols-4 gap-1">
+        <button data-tab-target="scan" class="flex flex-col items-center justify-center py-1 text-emerald-400 font-bold transition-all focus:outline-none">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path></svg>
+          <span class="text-[10px]">Scanner</span>
+        </button>
+
+        <button data-tab-target="board" class="flex flex-col items-center justify-center py-1 text-slate-400 font-bold transition-all focus:outline-none">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+          <span class="text-[10px]">Plateau</span>
+        </button>
+
+        <button data-tab-target="dict" class="flex flex-col items-center justify-center py-1 text-slate-400 font-bold transition-all focus:outline-none">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+          <span class="text-[10px]">Dico ODS</span>
+        </button>
+
+        <button data-tab-target="stats" class="flex flex-col items-center justify-center py-1 text-slate-400 font-bold transition-all focus:outline-none">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+          <span class="text-[10px]">Stats</span>
         </button>
       </div>
-    </section>
+    </nav>
 
-    <!-- ============================================================
-         PIED DE PAGE
-         ============================================================ -->
-    <footer class="app-footer">
-      <p>DroneAstro Assistant v1.0 — DJI Neo 2 &amp; Astrophotographie</p>
-      <p class="text-xs text-muted">Données : Open-Meteo · NOAA SWPC · OpenStreetMap · SunCalc</p>
-    </footer>
+  </div>
 
-    <!-- ============================================================
-         TOAST D'ERREUR
-         ============================================================ -->
-    <div id="error-toast" class="error-toast" hidden role="alert" aria-live="assertive">
-      <span id="error-message"></span>
-      <button id="error-close" class="btn-icon" aria-label="Fermer la notification">✕</button>
-    </div>
+  <!-- ============================================== -->
+  <!-- MODAL: LETTER PICKER / MODIFICATION            -->
+  <!-- ============================================== -->
+  <div id="modal-letter-picker" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center p-3">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-4 space-y-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+        <h3 id="picker-cell-title" class="text-sm font-black text-slate-100">Case H8</h3>
+        <button id="btn-close-picker" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
 
-    <!-- ============================================================
-         ÉCRAN DE CHARGEMENT
-         ============================================================ -->
-    <div id="loading-overlay" class="loading-overlay" role="status" aria-label="Chargement en cours">
-      <div class="loading-spinner"></div>
-      <p>Chargement des données...</p>
+      <!-- Quick A-Z Keys Grid -->
+      <div id="letter-keys-container" class="grid grid-cols-7 gap-1.5 max-h-56 overflow-y-auto p-1">
+        <!-- Injected by JS -->
+      </div>
+
+      <!-- Action buttons: Joker or Delete -->
+      <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+        <button id="btn-joker-tile" class="py-2.5 px-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center space-x-1.5">
+          <span>★ Poser Joker (0 pt)</span>
+        </button>
+        <button id="btn-delete-tile" class="py-2.5 px-3 bg-rose-950/80 hover:bg-rose-900 text-rose-200 font-bold text-xs rounded-xl border border-rose-800/80 flex items-center justify-center space-x-1.5">
+          <span>Effacer la tuile</span>
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- ============================================================
-       SCRIPTS (chargés en fin de corps pour performance)
-       ============================================================ -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
-  <script src="app.js" defer></script>
+  <!-- ============================================== -->
+  <!-- MODAL: TRICHE / COUP INVALIDE ALERT            -->
+  <!-- ============================================== -->
+  <div id="modal-cheat-alert" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-rose-600 cheat-pulse-border w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl text-center">
+      <div class="w-14 h-14 mx-auto rounded-full bg-rose-950/80 border-2 border-rose-500 flex items-center justify-center text-rose-400">
+        <svg class="w-8 h-8 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      </div>
+
+      <div class="space-y-1">
+        <span class="text-[10px] font-black uppercase tracking-widest text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800">
+          ARBITRE OFFICIEL
+        </span>
+        <h3 class="text-xl font-black text-rose-100 tracking-wide">TRICHE / COUP INVALIDE</h3>
+        <p id="cheat-rule-code" class="text-[11px] font-mono text-rose-400 font-bold">RÈGLE_VIOLÉE</p>
+      </div>
+
+      <div class="bg-rose-950/40 border border-rose-800/60 rounded-xl p-3 text-xs text-rose-200 text-left leading-relaxed">
+        <p id="cheat-error-message">Description du coup illégal...</p>
+      </div>
+
+      <button id="btn-dismiss-cheat" class="w-full py-3 px-4 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950 uppercase tracking-wider transition-all">
+        Corriger le placement
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="app-toast" class="opacity-0 pointer-events-none -translate-y-4"></div>
+
+  <!-- Application Modules -->
+  <script type="module" src="js/app-ui.js"></script>
+
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => console.log('[PWA] Service Worker enregistré:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>
