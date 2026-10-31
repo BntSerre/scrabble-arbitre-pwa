@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
   './lib/opencv.js',
   './lib/tesseract.min.js',
   './data/scrabble_ods.json',
+  './data/ods8.txt',
   './js/constants.js',
   './js/dictionary.js',
   './js/score-calculator.js',

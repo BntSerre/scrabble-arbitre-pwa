@@ -45,8 +45,24 @@ class ScrabbleDictionary {
         console.log(`[Dictionnaire] ${this.wordsSet.size} mots chargés avec succès.`);
         return true;
       } catch (err) {
-        console.warn('[Dictionnaire] Erreur de chargement du dictionnaire complet, utilisation du dictionnaire étendu de secours:', err);
-        this.isLoaded = true; // Fallback ready
+        console.warn('[Dictionnaire] Essai de chargement du fichier texte ODS8:', err);
+        try {
+          const txtResp = await fetch('data/ods8.txt');
+          if (txtResp.ok) {
+            const text = await txtResp.text();
+            const lines = text.split(/\r?\n/);
+            for (let i = 0; i < lines.length; i++) {
+              const w = lines[i].trim().toUpperCase();
+              if (w.length >= 2 && w.length <= 15) this.wordsSet.add(w);
+            }
+            this.isLoaded = true;
+            console.log(`[Dictionnaire ODS8 TXT] ${this.wordsSet.size} mots chargés.`);
+            return true;
+          }
+        } catch (e2) {
+          console.warn('[Dictionnaire] Utilisation du dictionnaire de secours:', e2);
+        }
+        this.isLoaded = true;
         return false;
       }
     })();
