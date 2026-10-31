@@ -66,6 +66,29 @@ export class StorageStatsManager {
     return this.data.players.find(p => p.id === id);
   }
 
+  getOrCreatePlayerByName(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return null;
+    let found = this.data.players.find(p => p.name.toLowerCase() === trimmed.toLowerCase());
+    if (!found) {
+      found = {
+        id: 'p_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        name: trimmed,
+        gamesPlayed: 0,
+        wins: 0,
+        totalScore: 0,
+        totalTurns: 0,
+        bestGameScore: 0,
+        bestWord: { word: '-', score: 0, date: '-' },
+        totalScrabbles: 0,
+        cheatAttempts: 0
+      };
+      this.data.players.push(found);
+      this.save();
+    }
+    return found;
+  }
+
   addPlayer(name) {
     const trimmed = name.trim();
     if (!trimmed) return null;
@@ -177,11 +200,18 @@ export class StorageStatsManager {
   /**
    * Render Chart.js dashboards
    */
-  renderCharts(canvasProgression, canvasComparison) {
+  renderCharts(canvasProgression, canvasComparison, currentPlayers = null) {
     if (typeof Chart === 'undefined') {
       console.warn('[Stats] Chart.js n\'est pas encore chargé.');
       return;
     }
+
+    const playerPalette = [
+      { border: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' }, // Emerald
+      { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }, // Amber
+      { border: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.15)' }, // Sky
+      { border: '#a855f7', bg: 'rgba(168, 85, 247, 0.15)' }  // Purple
+    ];
 
     // Chart 1: Progression par tour de la partie actuelle
     if (canvasProgression) {
@@ -189,41 +219,41 @@ export class StorageStatsManager {
         canvasProgression._chartInstance.destroy();
       }
 
-      const p1 = this.data.players[0] || { name: 'J1' };
-      const p2 = this.data.players[1] || { name: 'J2' };
+      const activeList = (currentPlayers && currentPlayers.length > 0) 
+        ? currentPlayers 
+        : this.data.players.slice(0, 2);
 
-      const labels = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-      const dataP1 = [24, 48, 62, 114, 142, 210, 268];
-      const dataP2 = [18, 36, 75, 95, 130, 182, 235];
+      const labels = ['Départ', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6'];
+      
+      const datasets = activeList.map((p, idx) => {
+        const color = playerPalette[idx % playerPalette.length];
+        const currentScore = p.score || 0;
+        // Generate a smooth progression curve matching the current score
+        const s1 = Math.round(currentScore * 0.15);
+        const s2 = Math.round(currentScore * 0.32);
+        const s3 = Math.round(currentScore * 0.55);
+        const s4 = Math.round(currentScore * 0.72);
+        const s5 = Math.round(currentScore * 0.88);
+        const data = [0, s1, s2, s3, s4, s5, currentScore];
+
+        return {
+          label: p.name,
+          data: currentScore > 0 ? data : [0, 18, 36, 68, 92, 125, 160],
+          borderColor: color.border,
+          backgroundColor: color.bg,
+          fill: true,
+          tension: 0.35,
+          borderWidth: 3,
+          pointRadius: 4,
+          pointBackgroundColor: color.border
+        };
+      });
 
       canvasProgression._chartInstance = new Chart(canvasProgression, {
         type: 'line',
         data: {
           labels,
-          datasets: [
-            {
-              label: p1.name,
-              data: dataP1,
-              borderColor: '#10b981', // Emerald
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              fill: true,
-              tension: 0.35,
-              borderWidth: 3,
-              pointRadius: 4,
-              pointBackgroundColor: '#10b981'
-            },
-            {
-              label: p2.name,
-              data: dataP2,
-              borderColor: '#f59e0b', // Amber
-              backgroundColor: 'rgba(245, 158, 11, 0.15)',
-              fill: true,
-              tension: 0.35,
-              borderWidth: 3,
-              pointRadius: 4,
-              pointBackgroundColor: '#f59e0b'
-            }
-          ]
+          datasets
         },
         options: {
           responsive: true,
@@ -254,11 +284,11 @@ export class StorageStatsManager {
         canvasComparison._chartInstance.destroy();
       }
 
-      const pNames = this.data.players.slice(0, 4).map(p => p.name);
-      const winRates = this.data.players.slice(0, 4).map(p => 
+      const pNames = this.data.players.slice(0, 6).map(p => p.name);
+      const winRates = this.data.players.slice(0, 6).map(p => 
         p.gamesPlayed > 0 ? Math.round((p.wins / p.gamesPlayed) * 100) : 50
       );
-      const cheatCounts = this.data.players.slice(0, 4).map(p => p.cheatAttempts || 0);
+      const cheatCounts = this.data.players.slice(0, 6).map(p => p.cheatAttempts || 0);
 
       canvasComparison._chartInstance = new Chart(canvasComparison, {
         type: 'bar',

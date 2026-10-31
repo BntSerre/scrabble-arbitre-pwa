@@ -13,11 +13,21 @@ import { ScrabbleDemo } from './demo.js';
 
 export class ScrabbleApp {
   constructor() {
-    // Game state
-    this.players = [
-      { id: 'p1', name: 'Joueur 1', score: 0 },
-      { id: 'p2', name: 'Joueur 2', score: 0 }
+    // Up to 4 player color themes
+    this.playerColors = [
+      { name: 'emerald', hex: '#10b981', bg: 'bg-emerald-500', text: 'text-emerald-400', badge: 'bg-emerald-950 text-emerald-300 border-emerald-500/50', ring: 'ring-emerald-400' },
+      { name: 'amber', hex: '#f59e0b', bg: 'bg-amber-500', text: 'text-amber-400', badge: 'bg-amber-950 text-amber-300 border-amber-500/50', ring: 'ring-amber-400' },
+      { name: 'sky', hex: '#0ea5e9', bg: 'bg-sky-500', text: 'text-sky-400', badge: 'bg-sky-950 text-sky-300 border-sky-500/50', ring: 'ring-sky-400' },
+      { name: 'purple', hex: '#a855f7', bg: 'bg-purple-500', text: 'text-purple-400', badge: 'bg-purple-950 text-purple-300 border-purple-500/50', ring: 'ring-purple-400' }
     ];
+
+    // Load initial players from storage
+    const saved = storageStats.getPlayers();
+    this.players = [
+      { id: saved[0]?.id || 'p1', name: saved[0]?.name || 'Joueur 1', score: 0 },
+      { id: saved[1]?.id || 'p2', name: saved[1]?.name || 'Joueur 2', score: 0 }
+    ];
+    this.setupPlayerCount = 2;
     this.currentPlayerIndex = 0;
     this.turnNumber = 1;
 
@@ -75,6 +85,7 @@ export class ScrabbleApp {
     this.setupGameActions();
     this.setupDictionaryUI();
     this.setupStatsUI();
+    this.setupNewGameModal();
 
     // Render initial empty board
     this.renderBoard();
@@ -493,7 +504,7 @@ export class ScrabbleApp {
     if (btnValidate) btnValidate.addEventListener('click', () => this.handleValidateClick());
     if (btnClearTurn) btnClearTurn.addEventListener('click', () => this.revertToPreviousGrid());
     if (btnPassTurn) btnPassTurn.addEventListener('click', () => this.handlePassTurn());
-    if (btnNewGame) btnNewGame.addEventListener('click', () => this.resetGame());
+    if (btnNewGame) btnNewGame.addEventListener('click', () => this.openNewGameModal());
     if (btnDismissCheat) btnDismissCheat.addEventListener('click', () => this.dismissModal());
   }
 
@@ -579,21 +590,30 @@ export class ScrabbleApp {
     // Lock board: previousGrid becomes currentGrid
     this.previousGrid = this.cloneGrid(this.currentGrid);
 
-    // Advance turn
-    this.turnNumber++;
+    // Advance turn: round advances when all players have played
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+    if (this.currentPlayerIndex === 0) {
+      this.turnNumber++;
+    }
 
+    const nextP = this.players[this.currentPlayerIndex];
     this.renderBoard();
     this.updatePlayerScoresUI();
     this.updateScorePreview();
+
+    this.notify(`C'est au tour de ${nextP.name} de jouer !`, 'info');
   }
 
   handlePassTurn() {
     const currP = this.players[this.currentPlayerIndex];
     this.notify(`${currP.name} a passé son tour (0 pt).`, 'info');
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
-    this.turnNumber++;
+    if (this.currentPlayerIndex === 0) {
+      this.turnNumber++;
+    }
+    const nextP = this.players[this.currentPlayerIndex];
     this.updatePlayerScoresUI();
+    this.notify(`C'est au tour de ${nextP.name} de jouer !`, 'info');
     this.playBeep(300, 'sine', 0.1);
   }
 
@@ -615,7 +635,136 @@ export class ScrabbleApp {
     this.renderBoard();
     this.updatePlayerScoresUI();
     this.updateScorePreview();
-    this.notify('Nouvelle partie initialisée !', 'success');
+    this.notify('Partie réinitialisée !', 'success');
+  }
+
+  setupNewGameModal() {
+    const btnOpen = document.getElementById('btn-open-game-setup');
+    const modal = document.getElementById('modal-new-game-setup');
+    const btnClose = document.getElementById('btn-close-setup-modal');
+    const btnConfirm = document.getElementById('btn-start-game-confirm');
+    const countBtns = document.querySelectorAll('.btn-player-count');
+
+    if (btnOpen) {
+      btnOpen.addEventListener('click', () => this.openNewGameModal());
+    }
+
+    if (btnClose && modal) {
+      btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+    }
+
+    countBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const count = parseInt(btn.dataset.count, 10);
+        this.setSetupPlayerCount(count);
+      });
+    });
+
+    if (btnConfirm) {
+      btnConfirm.addEventListener('click', () => this.confirmStartNewGame());
+    }
+  }
+
+  openNewGameModal() {
+    const modal = document.getElementById('modal-new-game-setup');
+    if (!modal) return;
+    this.populateSavedPlayersDatalist();
+    this.setSetupPlayerCount(this.players.length || 2);
+    this.renderSetupInputs();
+    modal.classList.remove('hidden');
+    this.playBeep(450, 'sine', 0.06);
+  }
+
+  setSetupPlayerCount(count) {
+    this.setupPlayerCount = count;
+    document.querySelectorAll('.btn-player-count').forEach(btn => {
+      const c = parseInt(btn.dataset.count, 10);
+      const isSelected = c === count;
+      btn.classList.toggle('bg-emerald-600', isSelected);
+      btn.classList.toggle('border-emerald-400', isSelected);
+      btn.classList.toggle('text-white', isSelected);
+      btn.classList.toggle('shadow-lg', isSelected);
+      btn.classList.toggle('bg-slate-800', !isSelected);
+      btn.classList.toggle('border-slate-700', !isSelected);
+      btn.classList.toggle('text-slate-300', !isSelected);
+    });
+    this.renderSetupInputs();
+  }
+
+  populateSavedPlayersDatalist() {
+    const datalist = document.getElementById('saved-players-datalist');
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    const all = storageStats.getPlayers();
+    all.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      datalist.appendChild(opt);
+    });
+  }
+
+  renderSetupInputs() {
+    const container = document.getElementById('setup-player-inputs-container');
+    if (!container) return;
+
+    const saved = storageStats.getPlayers();
+    container.innerHTML = '';
+
+    for (let i = 0; i < this.setupPlayerCount; i++) {
+      const color = this.playerColors[i % this.playerColors.length];
+      const defaultName = (this.players[i] && this.players[i].name) || (saved[i] && saved[i].name) || `Joueur ${i + 1}`;
+
+      const row = document.createElement('div');
+      row.className = 'bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5';
+      row.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-full ${color.bg} text-slate-950 font-black text-xs flex items-center justify-center">J${i + 1}</span>
+            <label class="text-xs font-bold text-slate-200">Joueur ${i + 1}</label>
+          </div>
+          <span class="text-[10px] font-bold ${color.text} uppercase">J${i + 1}</span>
+        </div>
+        <div>
+          <input type="text" id="setup-input-player-${i}" value="${defaultName}" list="saved-players-datalist" placeholder="Prénom du joueur..." class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-3 pr-3 text-xs font-bold text-slate-100 focus:outline-none focus:border-emerald-500">
+        </div>
+      `;
+      container.appendChild(row);
+    }
+  }
+
+  confirmStartNewGame() {
+    const newPlayers = [];
+    for (let i = 0; i < this.setupPlayerCount; i++) {
+      const input = document.getElementById(`setup-input-player-${i}`);
+      const rawName = input ? input.value.trim() : '';
+      const name = rawName || `Joueur ${i + 1}`;
+      // Persist in stats manager
+      const persistentPlayer = storageStats.getOrCreatePlayerByName(name);
+      newPlayers.push({
+        id: persistentPlayer.id,
+        name: persistentPlayer.name,
+        score: 0
+      });
+    }
+
+    this.players = newPlayers;
+    this.currentPlayerIndex = 0;
+    this.turnNumber = 1;
+    this.currentGrid = this.createEmptyGrid();
+    this.previousGrid = this.createEmptyGrid();
+    this.moveHistory = [];
+
+    const modal = document.getElementById('modal-new-game-setup');
+    if (modal) modal.classList.add('hidden');
+
+    this.renderBoard();
+    this.updatePlayerScoresUI();
+    this.updateScorePreview();
+    this.switchTab('board');
+
+    this.playSuccessSound();
+    const namesList = this.players.map(p => p.name).join(', ');
+    this.notify(`Partie lancée (${this.players.length} joueurs) : ${namesList} !`, 'success');
   }
 
   showCheatAlert(message, ruleCode) {
@@ -634,21 +783,64 @@ export class ScrabbleApp {
   }
 
   updatePlayerScoresUI() {
-    const p1El = document.getElementById('player-1-score');
-    const p2El = document.getElementById('player-2-score');
+    const container = document.getElementById('players-score-cards-container');
     const turnEl = document.getElementById('current-turn-indicator');
-    const p1Card = document.getElementById('card-player-1');
-    const p2Card = document.getElementById('card-player-2');
+    const bannerNameEl = document.getElementById('active-player-name-banner');
+    const bannerAvatarEl = document.getElementById('active-player-avatar');
 
-    if (p1El) p1El.textContent = `${this.players[0].score} pts`;
-    if (p2El) p2El.textContent = `${this.players[1].score} pts`;
-    if (turnEl) turnEl.textContent = `Tour ${this.turnNumber} • ${this.players[this.currentPlayerIndex].name}`;
+    if (!container) return;
 
-    if (p1Card && p2Card) {
-      p1Card.classList.toggle('ring-2', this.currentPlayerIndex === 0);
-      p1Card.classList.toggle('ring-emerald-400', this.currentPlayerIndex === 0);
-      p2Card.classList.toggle('ring-2', this.currentPlayerIndex === 1);
-      p2Card.classList.toggle('ring-amber-400', this.currentPlayerIndex === 1);
+    // Set responsive grid column classes depending on player count
+    container.className = 'grid gap-2 transition-all';
+    if (this.players.length === 2) {
+      container.classList.add('grid-cols-2');
+    } else if (this.players.length === 3) {
+      container.classList.add('grid-cols-3');
+    } else {
+      container.classList.add('grid-cols-2', 'sm:grid-cols-4');
+    }
+
+    const activeP = this.players[this.currentPlayerIndex] || this.players[0];
+    const activeColor = this.playerColors[this.currentPlayerIndex % this.playerColors.length];
+
+    // Render cards for all players
+    container.innerHTML = this.players.map((p, idx) => {
+      const isActive = idx === this.currentPlayerIndex;
+      const color = this.playerColors[idx % this.playerColors.length];
+      const initial = p.name ? p.name.charAt(0).toUpperCase() : `J${idx + 1}`;
+
+      return `
+        <div class="bg-slate-900 border rounded-xl p-2.5 transition-all relative overflow-hidden ${
+          isActive 
+            ? `ring-2 ${color.ring} border-transparent bg-slate-800/90 shadow-lg shadow-emerald-950/40` 
+            : 'border-slate-800/80 opacity-60 hover:opacity-90'
+        }">
+          <div class="flex items-center justify-between text-[11px] font-bold mb-1">
+            <div class="flex items-center space-x-1.5 truncate">
+              <span class="w-4 h-4 rounded-full ${color.bg} text-slate-950 font-black text-[9px] flex items-center justify-center shrink-0">${initial}</span>
+              <span class="truncate ${isActive ? 'text-white font-black' : 'text-slate-300'}">${p.name}</span>
+            </div>
+            ${isActive 
+              ? `<span class="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${color.badge} border animate-pulse shrink-0">JOUE</span>`
+              : `<span class="w-2 h-2 rounded-full ${color.bg} opacity-50 shrink-0"></span>`
+            }
+          </div>
+          <div class="text-xl font-black ${color.text} tracking-tight">${p.score} pts</div>
+        </div>
+      `;
+    }).join('');
+
+    // Update Turn Indicator and Active Player Banner
+    if (turnEl) {
+      turnEl.textContent = `Tour ${this.turnNumber}`;
+    }
+    if (bannerNameEl) {
+      bannerNameEl.textContent = `À ${activeP.name} de jouer`;
+      bannerNameEl.className = `text-sm font-black ${activeColor.text} block leading-tight`;
+    }
+    if (bannerAvatarEl) {
+      bannerAvatarEl.textContent = activeP.name ? activeP.name.charAt(0).toUpperCase() : `J${this.currentPlayerIndex + 1}`;
+      bannerAvatarEl.className = `w-8 h-8 rounded-full ${activeColor.bg} text-slate-950 font-black text-xs flex items-center justify-center shadow-lg ring-2 ring-white/30`;
     }
   }
 
@@ -827,7 +1019,7 @@ export class ScrabbleApp {
     // Render Chart.js graphs
     const chartProg = document.getElementById('chart-progression');
     const chartComp = document.getElementById('chart-comparison');
-    storageStats.renderCharts(chartProg, chartComp);
+    storageStats.renderCharts(chartProg, chartComp, this.players);
   }
 
   // --- NOTIFICATION TOAST ---
