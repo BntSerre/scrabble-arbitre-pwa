@@ -76,9 +76,111 @@
     <main class="flex-1 p-3 pb-24 overflow-y-auto">
 
       <!-- ============================================== -->
+      <!-- TAB 0: PARTIE (CONFIGURATION & STATS DU MATCH) -->
+      <!-- ============================================== -->
+      <section id="tab-game" class="tab-panel space-y-3">
+
+        <!-- Card 1: Configuration de la partie -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3 shadow-xl">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div>
+              <h2 class="text-sm font-black text-white flex items-center gap-1.5">
+                <span>CONFIGURATION DU MATCH</span>
+                <span class="text-[9px] bg-emerald-950 text-emerald-400 font-bold px-1.5 py-0.5 rounded border border-emerald-800/60">JOUEURS</span>
+              </h2>
+              <p class="text-[10px] text-slate-400">Prénoms sauvegardés au fil des parties dans les Stats</p>
+            </div>
+            <span class="text-xs font-black text-emerald-400 px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/40" id="game-active-count-badge">2 Joueurs</span>
+          </div>
+
+          <!-- Selector: 2, 3, or 4 players -->
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-bold text-slate-300">Nombre de joueurs autour de la table :</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" data-game-count="2" class="btn-game-count py-2 px-2 rounded-xl border text-xs font-black transition-all bg-emerald-600 border-emerald-400 text-white shadow-md">
+                2 Joueurs
+              </button>
+              <button type="button" data-game-count="3" class="btn-game-count py-2 px-2 rounded-xl border text-xs font-black transition-all bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700">
+                3 Joueurs
+              </button>
+              <button type="button" data-game-count="4" class="btn-game-count py-2 px-2 rounded-xl border text-xs font-black transition-all bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700">
+                4 Joueurs
+              </button>
+            </div>
+          </div>
+
+          <!-- Player inputs container -->
+          <div id="game-player-inputs-container" class="space-y-2 pt-1">
+            <!-- Injected by JS -->
+          </div>
+
+          <button id="btn-apply-game-setup" class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center space-x-2 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>DÉMARRER LA PARTIE AVEC CES JOUEURS</span>
+          </button>
+        </div>
+
+        <!-- Card 2: Statistiques en Direct de la Partie en Cours -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3 shadow-xl">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div>
+              <h2 class="text-sm font-black text-white flex items-center gap-1.5">
+                <span>STATISTIQUES DU MATCH EN COURS</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              </h2>
+              <p class="text-[10px] text-slate-400">Classement et records de la manche actuelle</p>
+            </div>
+            <span id="live-match-turn-badge" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">Tour 1</span>
+          </div>
+
+          <!-- Live Leaderboard Ranking -->
+          <div class="space-y-1.5">
+            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Classement en direct</span>
+            <div id="live-match-leaderboard" class="space-y-1.5">
+              <!-- Dynamically populated rank cards -->
+            </div>
+          </div>
+
+          <!-- Match Highlights (Record Mot du match, Scrabbles du match, etc.) -->
+          <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+            <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+              <span class="text-[10px] text-slate-400 block mb-0.5">Meilleur Mot du match</span>
+              <div id="match-best-word-display" class="font-black text-amber-400 text-sm tracking-wider">-</div>
+              <span id="match-best-word-author" class="text-[10px] text-slate-500">0 pt</span>
+            </div>
+            <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+              <span class="text-[10px] text-slate-400 block mb-0.5">Scrabbles (+50 pts)</span>
+              <div id="match-total-scrabbles" class="font-black text-emerald-400 text-sm">0 fois</div>
+              <span class="text-[10px] text-slate-500">dans ce match</span>
+            </div>
+          </div>
+
+          <!-- Live Move Log (Historique des coups de ce match) -->
+          <div class="space-y-1.5 pt-1">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Derniers coups joués</span>
+              <span id="match-moves-count" class="text-[10px] text-slate-500">0 coup</span>
+            </div>
+            <div id="match-recent-moves-log" class="space-y-1 max-h-36 overflow-y-auto">
+              <!-- Move chips injected by JS -->
+            </div>
+          </div>
+
+          <!-- Finish Match / Save into Persistent Stats Tab button -->
+          <div class="pt-2 border-t border-slate-800 flex space-x-2">
+            <button id="btn-finish-current-match" class="flex-1 py-2.5 px-3 bg-amber-600/90 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow flex items-center justify-center space-x-1.5 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
+              <span>CLÔTURER LE MATCH & ENREGISTRER DANS LES STATS</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
       <!-- TAB 1: SCANNER & CALIBRATION                   -->
       <!-- ============================================== -->
-      <section id="tab-scan" class="tab-panel space-y-3">
+      <section id="tab-scan" class="tab-panel hidden space-y-3">
         <!-- Live Calibration Viewfinder Container -->
         <div class="calibration-container relative border border-slate-700/60 shadow-2xl">
           <canvas id="camera-canvas"></canvas>
@@ -277,10 +379,15 @@
 
     </main>
 
-    <!-- Bottom Navigation Bar -->
+    <!-- Bottom Navigation Bar (5 Tabs) -->
     <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 px-2 py-2">
-      <div class="max-w-[440px] mx-auto grid grid-cols-4 gap-1">
-        <button data-tab-target="scan" class="flex flex-col items-center justify-center py-1 text-emerald-400 font-bold transition-all focus:outline-none">
+      <div class="max-w-[440px] mx-auto grid grid-cols-5 gap-1">
+        <button data-tab-target="game" class="flex flex-col items-center justify-center py-1 text-emerald-400 font-bold transition-all focus:outline-none">
+          <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path></svg>
+          <span class="text-[10px]">Partie</span>
+        </button>
+
+        <button data-tab-target="scan" class="flex flex-col items-center justify-center py-1 text-slate-400 font-bold transition-all focus:outline-none">
           <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path></svg>
           <span class="text-[10px]">Scanner</span>
         </button>

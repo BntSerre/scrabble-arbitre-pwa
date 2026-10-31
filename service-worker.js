@@ -1,5 +1,5 @@
 // Scrabble Arbitre IA - Service Worker (100% Offline Support)
-const CACHE_NAME = 'scrabble-arbitre-cache-v1';
+const CACHE_NAME = 'scrabble-arbitre-cache-v2';
 
 const STATIC_ASSETS = [
   './',

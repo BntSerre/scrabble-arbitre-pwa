@@ -80,6 +80,7 @@ export class ScrabbleApp {
 
     // Setup DOM Event Listeners
     this.setupTabs();
+    this.setupGameTab();
     this.setupCameraControls();
     this.setupBoardInteraction();
     this.setupGameActions();
@@ -87,7 +88,10 @@ export class ScrabbleApp {
     this.setupStatsUI();
     this.setupNewGameModal();
 
-    // Render initial empty board
+    // Render initial empty board and player states
+    this.populateSavedPlayersDatalist();
+    this.renderGameTabInputs();
+    this.renderCurrentMatchStats();
     this.renderBoard();
     this.updatePlayerScoresUI();
 
@@ -170,6 +174,9 @@ export class ScrabbleApp {
     } else if (tabId === 'board') {
       this.renderBoard();
       this.updateScorePreview();
+    } else if (tabId === 'game') {
+      this.renderGameTabInputs();
+      this.renderCurrentMatchStats();
     }
   }
 
@@ -600,6 +607,7 @@ export class ScrabbleApp {
     this.renderBoard();
     this.updatePlayerScoresUI();
     this.updateScorePreview();
+    this.renderCurrentMatchStats();
 
     this.notify(`C'est au tour de ${nextP.name} de jouer !`, 'info');
   }
@@ -613,6 +621,7 @@ export class ScrabbleApp {
     }
     const nextP = this.players[this.currentPlayerIndex];
     this.updatePlayerScoresUI();
+    this.renderCurrentMatchStats();
     this.notify(`C'est au tour de ${nextP.name} de jouer !`, 'info');
     this.playBeep(300, 'sine', 0.1);
   }
@@ -635,7 +644,259 @@ export class ScrabbleApp {
     this.renderBoard();
     this.updatePlayerScoresUI();
     this.updateScorePreview();
+    this.renderCurrentMatchStats();
     this.notify('Partie réinitialisée !', 'success');
+  }
+
+  // --- PARTIE TAB: GAME SETUP & LIVE MATCH STATS ---
+  setupGameTab() {
+    // 1. Player count selector buttons (2, 3, 4)
+    const countBtns = document.querySelectorAll('.btn-game-count');
+    countBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const count = parseInt(btn.dataset.gameCount, 10);
+        this.setGameTabPlayerCount(count);
+      });
+    });
+
+    // 2. Start game with current player configuration
+    const btnApply = document.getElementById('btn-apply-game-setup');
+    if (btnApply) {
+      btnApply.addEventListener('click', () => {
+        this.applyGameTabSetup();
+      });
+    }
+
+    // 3. Finish current match & save into persistent stats
+    const btnFinish = document.getElementById('btn-finish-current-match');
+    if (btnFinish) {
+      btnFinish.addEventListener('click', () => {
+        this.finishCurrentMatch();
+      });
+    }
+  }
+
+  setGameTabPlayerCount(count) {
+    this.setupPlayerCount = count;
+
+    // Update active badge
+    const badge = document.getElementById('game-active-count-badge');
+    if (badge) badge.textContent = `${count} Joueurs`;
+
+    // Update button states
+    document.querySelectorAll('.btn-game-count').forEach(btn => {
+      const c = parseInt(btn.dataset.gameCount, 10);
+      const isSelected = c === count;
+      btn.classList.toggle('bg-emerald-600', isSelected);
+      btn.classList.toggle('border-emerald-400', isSelected);
+      btn.classList.toggle('text-white', isSelected);
+      btn.classList.toggle('shadow-md', isSelected);
+      btn.classList.toggle('bg-slate-800', !isSelected);
+      btn.classList.toggle('border-slate-700', !isSelected);
+      btn.classList.toggle('text-slate-300', !isSelected);
+    });
+
+    this.renderGameTabInputs();
+  }
+
+  renderGameTabInputs() {
+    const container = document.getElementById('game-player-inputs-container');
+    if (!container) return;
+
+    this.populateSavedPlayersDatalist();
+    const saved = storageStats.getPlayers();
+    container.innerHTML = '';
+
+    for (let i = 0; i < this.setupPlayerCount; i++) {
+      const color = this.playerColors[i % this.playerColors.length];
+      const defaultName = (this.players[i] && this.players[i].name) || (saved[i] && saved[i].name) || `Joueur ${i + 1}`;
+
+      const row = document.createElement('div');
+      row.className = 'bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5 transition-all';
+      row.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-full ${color.bg} text-slate-950 font-black text-xs flex items-center justify-center shadow">J${i + 1}</span>
+            <label class="text-xs font-bold text-slate-200">Joueur ${i + 1}</label>
+          </div>
+          <span class="text-[10px] font-bold ${color.text} uppercase tracking-wider">J${i + 1}</span>
+        </div>
+        <div>
+          <input type="text" id="game-input-player-${i}" value="${defaultName}" list="saved-players-datalist" placeholder="Prénom ou pseudo..." class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg py-2 px-3 text-xs font-bold text-slate-100 focus:outline-none transition-colors">
+        </div>
+      `;
+      container.appendChild(row);
+    }
+  }
+
+  applyGameTabSetup() {
+    const newPlayers = [];
+    for (let i = 0; i < this.setupPlayerCount; i++) {
+      const input = document.getElementById(`game-input-player-${i}`);
+      const rawName = input ? input.value.trim() : '';
+      const name = rawName || `Joueur ${i + 1}`;
+      // Persist / retrieve in stats manager
+      const persistentPlayer = storageStats.getOrCreatePlayerByName(name);
+      newPlayers.push({
+        id: persistentPlayer.id,
+        name: persistentPlayer.name,
+        score: 0
+      });
+    }
+
+    this.players = newPlayers;
+    this.currentPlayerIndex = 0;
+    this.turnNumber = 1;
+    this.currentGrid = this.createEmptyGrid();
+    this.previousGrid = this.createEmptyGrid();
+    this.moveHistory = [];
+
+    this.renderBoard();
+    this.updatePlayerScoresUI();
+    this.updateScorePreview();
+    this.renderCurrentMatchStats();
+    this.switchTab('board');
+
+    this.playSuccessSound();
+    const namesList = this.players.map(p => p.name).join(', ');
+    this.notify(`Partie lancée (${this.players.length} joueurs) : ${namesList} !`, 'success');
+  }
+
+  renderCurrentMatchStats() {
+    // 1. Turn badge in match stats card
+    const turnBadge = document.getElementById('live-match-turn-badge');
+    const activeP = this.players[this.currentPlayerIndex] || this.players[0];
+    if (turnBadge && activeP) {
+      turnBadge.textContent = `Tour ${this.turnNumber} • À ${activeP.name} de jouer`;
+    }
+
+    // 2. Leaderboard ranking
+    const leaderboard = document.getElementById('live-match-leaderboard');
+    if (leaderboard && this.players.length > 0) {
+      const sorted = [...this.players].sort((a, b) => b.score - a.score);
+      const topScore = sorted[0].score;
+      const rankMedals = ['🥇 1er', '🥈 2e', '🥉 3e', '4e'];
+
+      leaderboard.innerHTML = sorted.map((p, rankIdx) => {
+        const originalIndex = this.players.findIndex(orig => orig.id === p.id);
+        const color = this.playerColors[(originalIndex >= 0 ? originalIndex : rankIdx) % this.playerColors.length];
+        const isCurrentTurn = p.id === activeP.id;
+        const initial = p.name ? p.name.charAt(0).toUpperCase() : `J${rankIdx + 1}`;
+        const gap = rankIdx === 0 ? 'Leader' : `-${topScore - p.score} pts`;
+
+        return `
+          <div class="flex items-center justify-between p-2 rounded-xl border transition-all ${
+            isCurrentTurn 
+              ? 'bg-slate-800/90 border-emerald-500/50 shadow-md ring-1 ring-emerald-400/40' 
+              : 'bg-slate-950/60 border-slate-800/70'
+          }">
+            <div class="flex items-center space-x-2.5 min-w-0">
+              <span class="text-xs font-black text-slate-400 w-10 shrink-0">${rankMedals[rankIdx] || `${rankIdx + 1}e`}</span>
+              <span class="w-6 h-6 rounded-full ${color.bg} text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow">${initial}</span>
+              <div class="truncate">
+                <span class="text-xs font-bold ${isCurrentTurn ? 'text-white font-black' : 'text-slate-200'} truncate block leading-tight">${p.name}</span>
+                ${isCurrentTurn ? '<span class="text-[9px] text-emerald-400 font-extrabold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>En train de jouer</span>' : ''}
+              </div>
+            </div>
+            <div class="text-right shrink-0 ml-2">
+              <span class="text-xs font-black ${color.text} block leading-tight">${p.score} pts</span>
+              <span class="text-[9px] font-bold ${rankIdx === 0 ? 'text-amber-400' : 'text-slate-500'} block">${gap}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 3. Match Highlights: Best word and Scrabbles
+    const bestWordDisplay = document.getElementById('match-best-word-display');
+    const bestWordAuthor = document.getElementById('match-best-word-author');
+    const scrabblesDisplay = document.getElementById('match-total-scrabbles');
+    const movesCountDisplay = document.getElementById('match-moves-count');
+
+    let bestMove = null;
+    let totalScrabbles = 0;
+
+    for (const m of this.moveHistory) {
+      if (!bestMove || m.score > bestMove.score) {
+        bestMove = m;
+      }
+      if (m.isScrabble) {
+        totalScrabbles++;
+      }
+    }
+
+    if (bestWordDisplay && bestWordAuthor) {
+      if (bestMove && bestMove.words) {
+        bestWordDisplay.textContent = bestMove.words;
+        bestWordAuthor.textContent = `${bestMove.score} pts par ${bestMove.playerName}`;
+      } else {
+        bestWordDisplay.textContent = '-';
+        bestWordAuthor.textContent = '0 pt';
+      }
+    }
+
+    if (scrabblesDisplay) {
+      scrabblesDisplay.textContent = `${totalScrabbles} fois`;
+    }
+
+    if (movesCountDisplay) {
+      movesCountDisplay.textContent = `${this.moveHistory.length} coup${this.moveHistory.length > 1 ? 's' : ''}`;
+    }
+
+    // 4. Recent moves log
+    const movesLogContainer = document.getElementById('match-recent-moves-log');
+    if (movesLogContainer) {
+      if (this.moveHistory.length === 0) {
+        movesLogContainer.innerHTML = '<div class="text-[11px] text-slate-500 italic py-2 text-center bg-slate-950/40 rounded-lg border border-slate-800/40">Aucun coup validé pour l\'instant dans ce match.</div>';
+      } else {
+        const recent = [...this.moveHistory].reverse().slice(0, 6);
+        movesLogContainer.innerHTML = recent.map(m => {
+          return `
+            <div class="flex items-center justify-between bg-slate-950/70 border border-slate-800/80 rounded-lg px-2.5 py-1.5 text-xs">
+              <div class="flex items-center space-x-2 truncate min-w-0">
+                <span class="text-[10px] font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded shrink-0">T${m.turn}</span>
+                <span class="font-bold text-slate-200 truncate shrink-0 max-w-[80px]">${m.playerName}</span>
+                <span class="font-mono font-black text-amber-300 tracking-wider truncate">${m.words}</span>
+                ${m.isScrabble ? '<span class="text-[8px] bg-emerald-950 text-emerald-300 font-black px-1 py-0.5 rounded border border-emerald-500/50 shrink-0 animate-pulse">BINGO +50</span>' : ''}
+              </div>
+              <span class="font-black text-emerald-400 shrink-0 ml-2">+${m.score} pts</span>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  }
+
+  finishCurrentMatch() {
+    const totalScore = this.players.reduce((sum, p) => sum + (p.score || 0), 0);
+    if (totalScore === 0 && this.moveHistory.length === 0) {
+      this.notify('Aucun coup n\'a encore été validé dans ce match.', 'warning');
+      return;
+    }
+
+    // Determine winner (highest score)
+    const sorted = [...this.players].sort((a, b) => b.score - a.score);
+    const winner = sorted[0];
+
+    const matchData = {
+      id: 'match_' + Date.now(),
+      date: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      players: this.players.map(p => ({ id: p.id, name: p.name, score: p.score })),
+      winnerId: winner.id,
+      winnerName: winner.name,
+      totalTurns: this.turnNumber,
+      moveCount: this.moveHistory.length,
+      turnsHistory: [...this.moveHistory]
+    };
+
+    storageStats.finishMatch(matchData);
+    this.celebrateWin();
+    this.notify(`🏆 Match terminé ! Victoire de ${winner.name} (${winner.score} pts). Résultats enregistrés dans l'onglet Stats !`, 'success');
+
+    this.renderCurrentMatchStats();
+    setTimeout(() => {
+      this.switchTab('stats');
+    }, 1000);
   }
 
   setupNewGameModal() {
@@ -646,7 +907,7 @@ export class ScrabbleApp {
     const countBtns = document.querySelectorAll('.btn-player-count');
 
     if (btnOpen) {
-      btnOpen.addEventListener('click', () => this.openNewGameModal());
+      btnOpen.addEventListener('click', () => this.switchTab('game'));
     }
 
     if (btnClose && modal) {
@@ -760,6 +1021,8 @@ export class ScrabbleApp {
     this.renderBoard();
     this.updatePlayerScoresUI();
     this.updateScorePreview();
+    this.renderCurrentMatchStats();
+    this.renderGameTabInputs();
     this.switchTab('board');
 
     this.playSuccessSound();
